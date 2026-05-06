@@ -1,0 +1,337 @@
+/* ═══════════════════════════════════════════════════════════
+   SolarCPQ — Produktkatalog styles v3.5
+   Aurora Energy Group AB
+   
+   Laddas efter admin.css i admin.html
+   Innehåller styles för:
+   - Katalogens flikar (Batterier, Växelriktare etc.)
+   - Produktrader med inköp/sälj/marginal
+   - Produkteditor (inline-redigering)
+   - Globala inställningar
+═══════════════════════════════════════════════════════════ */
+
+/* ─── KATALOG-LAYOUT ─────────────────────────────────────── */
+.catalog-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+.catalog-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.catalog-title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.catalog-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* ─── FLIKAR ─────────────────────────────────────────────── */
+.catalog-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--bg-card);
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.catalog-tab {
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.catalog-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.catalog-tab.active {
+  color: var(--admin-accent);
+  background: var(--admin-accent-bg);
+  border: 1px solid var(--admin-accent-border);
+}
+.catalog-tab-count {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.catalog-tab.active .catalog-tab-count {
+  background: var(--admin-accent-bg);
+  color: var(--admin-accent);
+}
+
+/* ─── PRODUKTTABELL ──────────────────────────────────────── */
+.catalog-table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.catalog-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.catalog-table thead {
+  background: var(--bg-hover);
+}
+.catalog-table th {
+  text-align: left;
+  padding: 11px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.catalog-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+.catalog-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.catalog-table tbody tr {
+  transition: background 0.12s;
+}
+.catalog-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+.catalog-table tbody tr.editing {
+  background: var(--admin-accent-bg);
+  border-left: 3px solid var(--admin-accent);
+}
+.catalog-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.catalog-table .num-muted {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* ─── INLINE EDITOR ──────────────────────────────────────── */
+.cat-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.cat-input:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 2px var(--admin-accent-glow);
+  outline: none;
+}
+.cat-input.price {
+  width: 110px;
+  text-align: right;
+}
+.cat-input.url {
+  width: 220px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* Spara-status indikator */
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+.save-indicator.saving {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.save-indicator.saved {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.save-indicator.idle {
+  display: none;
+}
+
+/* ─── MARGINALVISNING ────────────────────────────────────── */
+.margin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.margin-good { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.margin-ok   { background: var(--amber-bg);  color: var(--amber);  border: 1px solid var(--amber-border); }
+.margin-low  { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+
+/* ─── VARUMÄRKES-BADGE ───────────────────────────────────── */
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.brand-emaldo  { background: var(--green-bg);  color: var(--green); }
+.brand-enphase { background: var(--blue-bg);   color: var(--blue); }
+.brand-solis   { background: var(--amber-bg);  color: var(--amber); }
+.brand-dyness  { background: var(--amber-bg);  color: var(--amber); }
+.brand-huawei  { background: var(--red-bg);    color: var(--red); }
+.brand-generic { background: var(--bg-hover);  color: var(--text-secondary); }
+
+/* ─── COMING SOON ROW ────────────────────────────────────── */
+.catalog-table tbody tr.coming-soon {
+  opacity: 0.5;
+}
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ─── GLOBALA INSTÄLLNINGAR ──────────────────────────────── */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+.settings-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.settings-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.settings-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  width: 120px;
+  text-align: right;
+  transition: border-color 0.15s;
+}
+.settings-input:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 2px var(--admin-accent-glow);
+  outline: none;
+}
+
+/* ─── SEED BANNER ────────────────────────────────────────── */
+.seed-banner {
+  background: linear-gradient(135deg, var(--admin-accent-bg), var(--green-bg));
+  border: 1px solid var(--admin-accent-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.seed-banner-text {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.seed-banner-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .catalog-table-wrap { overflow-x: auto; }
+  .catalog-table { min-width: 700px; }
+  .cat-input.url { width: 160px; }
+}
+@media (max-width: 768px) {
+  .catalog-wrap { padding: 16px; }
+  .catalog-title { font-size: 22px; }
+  .catalog-tabs { gap: 2px; padding: 4px; }
+  .catalog-tab { padding: 7px 10px; font-size: 12px; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
