@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f1117">
+  <title>SolarCPQ Admin — Aurora Energy Group AB</title>
+
+  <link rel="icon" type="image/png" href="logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!--
+    Styles ärvningskedja:
+    1. kund.css         → design tokens, knappar, badges, formulär
+    2. admin.css        → admin-specifika komponenter
+    3. admin-catalog.css → produktkatalog-specifika styles
+  -->
+  <link rel="stylesheet" href="kund.css">
+  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="admin-catalog.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       LOADING OVERLAY
+  ═══════════════════════════════════════════════════════ -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <span style="font-size:13px;color:var(--text-secondary)">Laddar SolarCPQ Admin...</span>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       LOGIN SCREEN
+  ═══════════════════════════════════════════════════════ -->
+  <div id="login-screen" class="hidden">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="logo.png" alt="Aurora Energy" style="height:52px"
+          onerror="this.style.display='none';document.getElementById('login-logo-fb').style.display='flex'">
+        <div id="login-logo-fb" class="login-logo-placeholder"
+          style="display:none;background:linear-gradient(135deg,#a855f7,#4f8ef7)">A</div>
+      </div>
+      <h1 class="login-title">SolarCPQ Admin</h1>
+      <p class="login-sub">Aurora Energy Group AB</p>
+
+      <div id="login-error" class="login-error hidden"></div>
+
+      <div class="form-group">
+        <label class="form-label">E-post</label>
+        <input type="email" id="login-email" class="form-input"
+          placeholder="admin@aurora-energy.se" autocomplete="email">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Lösenord</label>
+        <input type="password" id="login-password" class="form-input"
+          placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <button id="login-btn" class="login-submit"
+        style="background:var(--admin-accent)">
+        Logga in som admin
+      </button>
+
+      <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:20px">
+        Aurora Energy Group AB &bull; Adminportal v3.5
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       APP SHELL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="app" class="hidden">
+
+    <!-- Header -->
+    <header class="app-header admin-mode">
+      <div class="header-logo">
+        <img src="logo.png" alt="Aurora" style="height:32px"
+          onerror="this.style.display='none';document.getElementById('hdr-icon').style.display='flex'">
+        <div id="hdr-icon" class="header-logo-icon"
+          style="display:none;background:linear-gradient(135deg,#a855f7,#4f8ef7)">A</div>
+        <span class="admin-badge">ADMIN</span>
+      </div>
+
+      <nav class="header-nav">
+        <button class="header-nav-btn active" id="nav-dashboard"
+          onclick="AdminApp.showView('dashboard')">
+          📊 Dashboard
+        </button>
+        <button class="header-nav-btn" id="nav-catalog"
+          onclick="AdminApp.showView('catalog')">
+          📦 Produktkatalog
+        </button>
+      </nav>
+
+      <div class="header-spacer"></div>
+
+      <div class="header-actions">
+        <div class="header-user" onclick="AdminAuth.logout()" title="Klicka för att logga ut">
+          <div class="user-avatar" id="user-avatar"
+            style="background:var(--admin-accent)">A</div>
+          <span id="user-name" style="font-size:12px">Admin</span>
+          <span style="font-size:11px;color:var(--text-muted)">↗</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="app-content">
+
+      <!-- DASHBOARD VIEW -->
+      <div id="view-dashboard" class="view active">
+        <div class="admin-dashboard-wrap">
+
+          <div class="admin-top">
+            <div>
+              <h1 class="admin-title">
+                Dashboard
+                <span class="admin-badge">Aurora Energy Group AB</span>
+              </h1>
+              <p class="admin-subtitle">Översikt av alla kunder, projekt och pipeline</p>
+            </div>
+          </div>
+
+          <div class="admin-stats-grid" id="admin-stats-grid"></div>
+          <div id="pipeline-container" class="pipeline-grid"></div>
+
+          <div class="admin-section-header">
+            <h2 class="admin-section-title">📁 Alla projekt</h2>
+            <div class="admin-search-wrap">
+              <span class="admin-search-icon">🔍</span>
+              <input type="text" id="admin-search-input" class="admin-search-input"
+                placeholder="Sök projekt, kund, e-post, stad...">
+            </div>
+          </div>
+
+          <div class="filter-pills" id="filter-pills" style="margin-bottom:16px"></div>
+
+          <div class="admin-projects-table-wrap">
+            <table class="admin-projects-table">
+              <thead>
+                <tr>
+                  <th>Projekt</th>
+                  <th>Kund</th>
+                  <th>Status</th>
+                  <th style="text-align:right">Belopp ex moms</th>
+                  <th style="text-align:right">Kundens vinst</th>
+                  <th style="text-align:right">Auroras vinst</th>
+                  <th>Installation</th>
+                  <th style="text-align:right">Uppdaterad</th>
+                </tr>
+              </thead>
+              <tbody id="admin-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CATALOG VIEW -->
+      <div id="view-catalog" class="view">
+        <div id="catalog-content">
+          <!-- Renderas dynamiskt av Catalog.render() -->
+          <div style="display:flex;align-items:center;justify-content:center;height:60vh">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       PROJECT MODAL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="project-modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="admin-badge">CRM</span>
+          <input type="text" id="modal-title-input" class="modal-title-input"
+            placeholder="Projektnamn"
+            onchange="ProjectModal.setTitle(this.value)">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm"
+            style="color:var(--red);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.12)"
+            onclick="AdminApp.deleteProject(ProjectModal.currentId, document.getElementById('modal-title-input').value || 'projektet')"
+            title="Radera projekt">🗑️ Radera</button>
+          <button class="modal-close-btn" onclick="ProjectModal.close()" title="Stäng (Esc)">×</button>
+        </div>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SCRIPTS — laddningsordning:
+       1. core.js           → DB, Pricing, Utils, BrandConfig
+       2. admin-app.js      → AdminAuth, AdminApp, AdminDashboard, ProjectModal, AdminUI
+       3. admin-catalog.js  → Catalog, CatalogInit
+       4. firebase.js       → CloudDB, FirebaseAuth (ES module → window)
+       5. adminInit()       → körs sist när allt är på plats
+  ═══════════════════════════════════════════════════════ -->
+
+  <script src="core.js"></script>
+  <script src="admin-app.js"></script>
+  <script src="admin-catalog.js"></script>
+
+  <script type="module">
+    // Säkerhetstimeout
+    const safetyTimer = setTimeout(() => {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay && overlay.style.display !== 'none') {
+        console.warn('[SolarCPQ Admin] Säkerhetstimeout — visar login-skärm');
+        overlay.style.display = 'none';
+        document.getElementById('login-screen').classList.remove('hidden');
+        const errEl = document.getElementById('login-error');
+        if (errEl) {
+          errEl.textContent = 'Varning: Firebase svarade inte. Kontrollera anslutning.';
+          errEl.classList.remove('hidden');
+        }
+      }
+    }, 6000);
+
+    try {
+      const { CloudDB, FirebaseAuth } = await import('./firebase.js');
+      window.CloudDB = CloudDB;
+      window.FirebaseAuth = FirebaseAuth;
+      console.log('[SolarCPQ Admin] Firebase laddad ✅');
+      clearTimeout(safetyTimer);
+      adminInit();
+    } catch (err) {
+      clearTimeout(safetyTimer);
+      console.error('[SolarCPQ Admin] Firebase-fel:', err);
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.innerHTML = `
+          <div style="max-width:480px;text-align:center;padding:24px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px">
+            <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+            <div style="font-size:16px;font-weight:700;color:#ef4444;margin-bottom:8px">Firebase kunde inte laddas</div>
+            <div style="font-size:13px;color:#8b9cc8;margin-bottom:16px">${err.message || err}</div>
+            <div style="font-size:12px;color:#556080;line-height:1.8">
+              Kör via Live Server (http://) — inte file://<br>
+              Öppna konsolen (F12) för mer info.
+            </div>
+          </div>`;
+      }
+    }
+  </script>
+
+</body>
+</html>

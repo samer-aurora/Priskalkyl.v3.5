@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f1117">
+  <title>SolarCPQ — Kalmar VVS & Elmontage AB</title>
+
+  <!-- Favicon (använder logo.png) -->
+  <link rel="icon" type="image/png" href="logo.png">
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="kund.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       LOADING OVERLAY
+  ═══════════════════════════════════════════════════════ -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <span style="font-size:13px;color:var(--text-secondary)">Laddar SolarCPQ...</span>
+  </div>
+
+  <!-- Toast container för notifikationer -->
+  <div id="toast-container"></div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       LOGIN SCREEN
+  ═══════════════════════════════════════════════════════ -->
+  <div id="login-screen" class="hidden">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="logo.png" alt="Aurora Energy" style="height:52px"
+          onerror="this.style.display='none';document.getElementById('login-logo-fb').style.display='flex'">
+        <div id="login-logo-fb" class="login-logo-placeholder" style="display:none">A</div>
+      </div>
+      <h1 class="login-title">SolarCPQ</h1>
+      <p class="login-sub">Kalmar VVS &amp; Elmontage AB</p>
+
+      <div id="login-error" class="login-error hidden"></div>
+
+      <div class="form-group">
+        <label class="form-label">E-post</label>
+        <input type="email" id="login-email" class="form-input"
+          placeholder="din@email.se" autocomplete="email">
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label class="form-label">Lösenord</label>
+        <input type="password" id="login-password" class="form-input"
+          placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <button id="login-btn" class="login-submit">Logga in</button>
+
+      <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:20px">
+        Aurora Energy Group AB &bull; SolarCPQ v3.5
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       APP SHELL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="app" class="hidden">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <img src="logo.png" alt="Aurora" style="height:32px"
+          onerror="this.style.display='none';document.getElementById('hdr-icon').style.display='flex'">
+        <div id="hdr-icon" class="header-logo-icon" style="display:none">A</div>
+      </div>
+
+      <nav class="header-nav">
+        <button class="header-nav-btn active" id="nav-dashboard" onclick="App.showView('dashboard')">
+          📊 Mina projekt
+        </button>
+        <button class="header-nav-btn" id="nav-calc" onclick="App.showView('calculator')">
+          🔆 Ny offert
+        </button>
+      </nav>
+
+      <div class="header-spacer"></div>
+
+      <div class="header-actions">
+        <div class="header-user" onclick="Auth.logout()" title="Klicka för att logga ut">
+          <div class="user-avatar" id="user-avatar">K</div>
+          <span id="user-name" style="font-size:12px">Kalmar VVS</span>
+          <span style="font-size:11px;color:var(--text-muted)">↗</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="app-content">
+
+      <!-- DASHBOARD VIEW -->
+      <div id="view-dashboard" class="view active">
+        <div class="dashboard-wrap">
+          <div class="dashboard-top">
+            <div>
+              <h1 class="dashboard-title">Mina projekt</h1>
+              <p class="dashboard-subtitle">Kalmar VVS &amp; Elmontage AB</p>
+            </div>
+            <button class="btn btn-primary" onclick="App.showView('calculator');CalcUI.newProject()">
+              ➕ Ny offert
+            </button>
+          </div>
+
+          <!-- Statistik-kort renderas dynamiskt -->
+          <div class="stats-grid" id="stats-grid"></div>
+
+          <!-- Filter-pills renderas dynamiskt -->
+          <div class="filter-pills" id="filter-pills"></div>
+
+          <!-- Projektkort renderas dynamiskt -->
+          <div class="projects-grid" id="projects-grid"></div>
+        </div>
+      </div>
+
+      <!-- DETAIL VIEW -->
+      <div id="view-detail" class="view">
+        <div class="detail-wrap" id="detail-content"></div>
+      </div>
+
+      <!-- CALCULATOR VIEW -->
+      <div id="view-calculator" class="view">
+        <div class="calc-layout">
+
+          <!-- Sidebar med 11 steg -->
+          <aside class="calc-sidebar" id="calc-sidebar">
+            <div class="calc-sidebar-header">
+              <div class="calc-sidebar-title" id="sidebar-project-name">Ny offert</div>
+              <div class="calc-sidebar-sub" id="sidebar-customer-name">Ingen kund vald</div>
+            </div>
+            <div class="calc-sidebar-body" id="calc-steps-container"></div>
+          </aside>
+
+          <!-- Resultatpanel -->
+          <div class="calc-main" id="calc-main">
+            <div class="calc-main-header">
+              <span class="calc-main-title">Offertöversikt</span>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" onclick="CalcUI.saveProject()">💾 Spara</button>
+                <button class="btn btn-secondary btn-sm" onclick="CalcUI.exportPDF()">📄 PDF</button>
+                <button class="btn btn-secondary btn-sm" onclick="CalcUI.shareOffer()">🔗 Dela</button>
+              </div>
+            </div>
+            <div class="calc-main-body">
+              <div id="result-panel" class="result-panel"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Mobile bottom navigation -->
+    <nav class="mobile-bottom-nav">
+      <button class="mobile-nav-btn active" id="mob-nav-dashboard" onclick="App.showView('dashboard')">
+        <span class="mobile-nav-icon">📊</span>
+        <span>Projekt</span>
+      </button>
+      <button class="mobile-nav-btn" id="mob-nav-calc" onclick="App.showView('calculator')">
+        <span class="mobile-nav-icon">🔆</span>
+        <span>Offert</span>
+      </button>
+    </nav>
+
+    <!-- Mobile floating action button -->
+    <button class="mobile-fab" onclick="App.showView('calculator');CalcUI.newProject()" title="Ny offert">
+      ➕
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SCRIPTS
+       Ordning är viktig:
+       1. core.js — datamodell, produktkatalog, beräkningar
+       2. firebase.js — exporterar CloudDB & FirebaseAuth (ES module)
+       3. kund-app.js — UI-logik, beror på allt ovan
+  ═══════════════════════════════════════════════════════ -->
+
+  <!-- ═══════════════════════════════════════════════════════
+       SCRIPTS — laddningsordning
+       1. core.js      → DB, Pricing, Utils, BrandConfig (globala)
+       2. kund-app.js  → Auth, App, Dashboard, CalcUI (globala)
+       3. firebase.js  → CloudDB, FirebaseAuth (ES module → window)
+       4. kundInit()   → körs sist när allt är på plats
+  ═══════════════════════════════════════════════════════ -->
+
+  <script src="core.js"></script>
+  <script src="pdf-export.js"></script>
+  <script src="kund-app.js"></script>
+
+  <script type="module">
+    // Säkerhetstimeout: om Firebase inte svarar inom 6s visas login-skärmen ändå
+    const safetyTimer = setTimeout(() => {
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay && overlay.style.display !== 'none') {
+        console.warn('[SolarCPQ] Säkerhetstimeout — visar login-skärm');
+        overlay.style.display = 'none';
+        document.getElementById('login-screen').classList.remove('hidden');
+        const errEl = document.getElementById('login-error');
+        if (errEl) {
+          errEl.textContent = 'Varning: Firebase svarade inte. Kontrollera anslutning.';
+          errEl.classList.remove('hidden');
+        }
+      }
+    }, 6000);
+
+    try {
+      const { CloudDB, FirebaseAuth } = await import('./firebase.js');
+      window.CloudDB = CloudDB;
+      window.FirebaseAuth = FirebaseAuth;
+      console.log('[SolarCPQ] Firebase laddad ✅');
+      clearTimeout(safetyTimer);
+      kundInit();
+    } catch (err) {
+      clearTimeout(safetyTimer);
+      console.error('[SolarCPQ] Firebase-fel:', err);
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.innerHTML = `
+          <div style="max-width:480px;text-align:center;padding:24px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px">
+            <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+            <div style="font-size:16px;font-weight:700;color:#ef4444;margin-bottom:8px">Något gick fel</div>
+            <div style="font-size:13px;color:#8b9cc8;margin-bottom:16px">${err.message || err}</div>
+            <div style="font-size:12px;color:#556080;line-height:1.8">
+              Öppna konsolen (F12) för mer info.<br>
+              Se till att du kör via Live Server (http://) och inte file://.
+            </div>
+          </div>`;
+      }
+    }
+  </script>
+
+</body>
+</html>
