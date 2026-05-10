@@ -605,12 +605,53 @@ window.CalcUI = {
   },
 
   init() {
+    // Ladda default från core.js som fallback
     const state = DB.load();
     CalcUI.cat = state.products;
     CalcUI.s = CalcUI._defaultState();
+
+    // Hämta aktuell produktkatalog från Firebase (admins priser)
+    // Fallback: om Firebase inte svarar använder vi core.js-priserna
+    CalcUI._loadFirebaseCatalog();
+
     CalcUI.build();
     CalcUI.compute();
   },
+
+  // Hämta produktkatalog från Firebase och starta realtidslyssnare
+  async _loadFirebaseCatalog() {
+    try {
+      if (!window.CloudDB) return; // Firebase inte laddad ännu
+
+      // Hämta en gång direkt
+      const catalog = await CloudDB.getProductCatalog();
+      if (catalog?.products) {
+        CalcUI._applyCatalog(catalog.products);
+        console.log('[CalcUI] Produktkatalog laddad från Firebase ✅');
+      }
+
+      // Starta realtidslyssnare — om admin ändrar priser uppdateras kalkylatorn live
+      CalcUI._unsubCatalog = CloudDB.onCatalogChange(data => {
+        if (data?.products) {
+          CalcUI._applyCatalog(data.products);
+          console.log('[CalcUI] Produktkatalog uppdaterad från Firebase (realtid)');
+        }
+      });
+    } catch (e) {
+      console.warn('[CalcUI] Kunde inte hämta Firebase-katalog, använder core.js:', e);
+    }
+  },
+
+  // Applicera Firebase-katalog på CalcUI utan att tappa state
+  _applyCatalog(products) {
+    CalcUI.cat = products;
+    // Om det pågår en beräkning, uppdatera resultatet med nya priser
+    if (CalcUI.s) {
+      CalcUI.compute();
+    }
+  },
+
+  _unsubCatalog: null,
 
   newProject() {
     CalcUI.s = CalcUI._defaultState();
@@ -784,6 +825,29 @@ window.CalcUI = {
   _sSolar() {
     const s = CalcUI.s, cat = CalcUI.cat;
     const minP = BrandConfig.getMinPanels(s.brand, s.scenario);
+
+    // Vid sol-only med Solis/Huawei behövs växelriktarval (ej Enphase — den har mikro auto)
+    const needsInverterSelect = s.scenario === 'solar' && (s.brand === 'solis_dyness' || s.brand === 'huawei');
+    let inverterHtml = '';
+    if (needsInverterSelect) {
+      const invBrand = s.brand === 'solis_dyness' ? 'solis' : 'huawei';
+      const invs = cat.inverters.filter(i => i.brand === invBrand && !i.comingSoon);
+      inverterHtml = `
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Välj växelriktare</label>
+        <div class="inverter-list">
+          ${invs.map(inv => `
+            <div class="inverter-option ${s.selectedInverter === inv.id ? 'selected' : ''}" onclick="CalcUI.set('selectedInverter','${inv.id}')">
+              <div>
+                <div class="inv-name">${inv.name}</div>
+                <div class="inv-price">${inv.powerKw} kW</div>
+              </div>
+              <span style="font-weight:700;font-size:13px;color:var(--text-primary)">${UI.fmt(inv.salesPrice)}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }
+
     return `
     <div class="form-group">
       <label class="form-label">Solpanel</label>
@@ -806,7 +870,8 @@ window.CalcUI = {
         ${cat.mounting.map(m => `
           <option value="${m.id}"${s.mountId === m.id ? ' selected' : ''}>${m.name} — ${UI.fmt(m.salesPrice)}/panel</option>`).join('')}
       </select>
-    </div>`;
+    </div>
+    ${inverterHtml}`;
   },
 
   _sEl() {
@@ -1035,11 +1100,16 @@ window.CalcUI = {
     CalcUI.s.brand = brand;
     const minP = BrandConfig.getMinPanels(brand, CalcUI.s.scenario);
     if (CalcUI.s.panelQty < minP) CalcUI.s.panelQty = minP;
+
+    // Auto-välj första Solis-växelriktaren om ingen vald (alla scenarion)
     if (brand === 'solis_dyness' && !CalcUI.s.selectedInverter) {
-      const inv = CalcUI.cat?.inverters?.find(i => i.brand === 'solis');
+      const inv = CalcUI.cat?.inverters?.find(i => i.brand === 'solis' && !i.comingSoon);
       if (inv) CalcUI.s.selectedInverter = inv.id;
     }
-    CalcUI.activeStep = 3;
+
+    // Navigera till rätt steg efter val:
+    // Sol-only → steg 4 (Solceller), annars steg 3 (Batteri)
+    CalcUI.activeStep = CalcUI.s.scenario === 'solar' ? 4 : 3;
     CalcUI.build();
     CalcUI.compute();
   },

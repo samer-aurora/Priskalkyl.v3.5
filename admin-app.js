@@ -388,6 +388,7 @@ window.AdminDashboard = {
         <td><span class="badge badge-${si.cls}">${si.label}</span></td>
         <td class="col-amount">${AdminUI.fmt(p.financials?.revenueExVat || 0)}</td>
         <td class="col-amount" style="color:var(--green)">${AdminUI.fmt(p.customerProfit || 0)}</td>
+        <td class="col-amount" style="color:var(--admin-accent)">${AdminUI.fmt((p.financials?.revenueExVat || 0) - (p.financials?.cost || 0) - (p.customerProfit || 0))}</td>
         <td class="col-progress">
           ${p.status === 'won' ? `
           <div class="table-progress-wrap">
@@ -455,9 +456,11 @@ window.ProjectModal = {
     }).join('');
 
     // Beräkna marginaler för beställningsunderlag
+    // OBS: totalSale inkluderar kundens vinstpåslag → subtrahera det för Auroras egna marginal
     const totalCost      = prods.reduce((s, pr) => s + (pr.purchasePrice || 0) * pr.qty, 0);
     const totalSale      = prods.reduce((s, pr) => s + pr.salesPrice * pr.qty, 0);
-    const auroraMargin   = totalSale - totalCost;
+    const custProfit     = p.customerProfit || 0;
+    const auroraMargin   = totalSale - custProfit - totalCost;
     const marginPercent  = totalSale > 0 ? Math.round(auroraMargin / totalSale * 100) : 0;
     const marginCls      = marginPercent >= 25 ? 'margin-good' : marginPercent >= 10 ? 'margin-ok' : 'margin-low';
 

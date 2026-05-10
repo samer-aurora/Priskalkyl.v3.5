@@ -562,15 +562,20 @@ const Pricing = {
       return [{ id: "add_009", qty: 1 }];
     }
     const addons = [{ id: "add_001", qty: 1 }]; // Gateway always
+
+    // Comms Kit 2: vid batteri-only OCH hybrid (INTE sol-only) — per spec §3.8
     if (scenario === "battery" || scenario === "hybrid") {
       addons.push({ id: "add_003", qty: 1 }); // Comms Kit 2
     }
-    if (scenario === "battery" || scenario === "solar") {
-      addons.push({ id: "add_004", qty: 1 }); // 1× IQ Relay
-    }
+
+    // IQ Relay: 1 st vid batteri-only/sol-only, 2 st vid hybrid — MUTEX, ej kumulativt
     if (scenario === "hybrid") {
       addons.push({ id: "add_004", qty: 2 }); // 2× IQ Relay
+    } else {
+      // battery-only eller solar-only → 1× IQ Relay
+      addons.push({ id: "add_004", qty: 1 }); // 1× IQ Relay
     }
+
     return addons;
   }
 };

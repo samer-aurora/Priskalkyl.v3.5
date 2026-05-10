@@ -1,500 +1,539 @@
 // ============================================================
-// SolarCPQ — PDF Export v3.5.1
-// Aurora Energy Group AB
+// SolarCPQ — PDF Export v3.5.4
+// 3-sidors layout, kompakt och visuell
+// Sida 1: Produkter + summering
+// Sida 2: Grönt avdrag + ekonomisk översikt
+// Sida 3: (om nodvandigt, overflow)
 // ============================================================
 
 window.PDF = {
 
   C: {
     primary:   [79,  142, 247],
-    green:     [34,  197, 94],
-    amber:     [245, 158, 11],
+    green:     [21,  128, 61],
+    greenMid:  [187, 247, 208],
+    greenBg:   [240, 253, 244],
+    amber:     [160, 100, 0],
     dark:      [15,  17,  23],
     text:      [30,  35,  50],
-    muted:     [100, 116, 160],
+    muted:     [110, 125, 165],
     white:     [255, 255, 255],
-    lightGray: [247, 248, 252],
-    border:    [220, 225, 240],
-    greenBg:   [240, 253, 244],
-    greenBdr:  [34,  197, 94]
+    gray:      [247, 248, 252],
+    border:    [218, 224, 238],
+    purple:    [100, 60,  200]
   },
 
   SUPPLIER: {
     name:    'Kalmar VVS- & El-Montage AB',
     address: 'Storgatan 70, 386 32 Färjestaden',
     group:   'En del av Assemblin Caverion Group',
-    groupSub:'I april 2024 gick Caverion och Assemblin samman för att skapa ett\nledande nordeuropeiskt tekniskt service- och installationsföretag.\nTillsammans är vi ~20 000 medarbetare i 9 länder.'
+    desc:    'I april 2024 gick Caverion och Assemblin samman och bildade ett ledande ' +
+             'nordeuropeiskt tekniskt service- och installationsföretag med ca 20 000 ' +
+             'medarbetare i 9 länder.'
   },
 
-  // Avdragsprocent
-  AVDRAG: {
-    battery: 0.485,   // 48,5%
-    solar:   0.1455   // 14,55%
-  },
+  DISCLAIMER: 'Beräkningarna är exempelberäkningar avsedda som vägledning. Faktiska resultat ' +
+              'kan avvika beroende på elanvändning, elpriser och skatteregler. ' +
+              'Kalmar VVS- & El-Montage AB kan ej hållas ansvarig för beräkningarnas riktighet.',
+
+  AVDRAG: { battery: 0.485, solar: 0.1455 },
+  SCHAB:  { battery: 0.015, solar: 0.0045 },
 
   async generate(state, result) {
     if (!window.jspdf) {
       UI.toast('Laddar PDF-bibliotek...', 'success');
-      await PDF._loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      await PDF._load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     }
-    if (!window.jspdf) {
-      UI.toast('Kunde inte ladda PDF-biblioteket', 'error');
-      return;
-    }
-
+    if (!window.jspdf) { UI.toast('Kunde inte ladda PDF', 'error'); return; }
     UI.toast('Genererar PDF...', 'success');
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pw = 210, ph = 297, ml = 18, mr = 18;
-    const cw = pw - ml - mr;
+    const pw = 210, ph = 297, ml = 15, mr = 15, cw = pw - ml - mr;
     let y = 0;
 
     // ══════════════════════════════════════════════════════
-    // HEADER (mörk)
+    // SIDA 1 — PRODUKTER
     // ══════════════════════════════════════════════════════
-    doc.setFillColor(...PDF.C.dark);
-    doc.rect(0, 0, pw, 52, 'F');
-
-    // Logotyp
+    // Ladda logo och rita header
+    let logoData = null;
     try {
-      const logo = await PDF._getLogoBase64();
-      if (logo) doc.addImage(logo, 'PNG', ml, 10, 52, 22, '', 'FAST');
+      logoData = await PDF._getLogo();
     } catch(e) {}
+    y = PDF._header(doc, pw, ph, ml, mr, cw, state, logoData);
 
-    // Offertinfo höger
-    doc.setFontSize(8);
-    doc.setTextColor(...PDF.C.white);
-    doc.setFont(undefined, 'bold');
-    doc.text('OFFERTDOKUMENT', pw - mr, 16, { align: 'right' });
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(160, 180, 220);
-    doc.text(new Date().toLocaleDateString('sv-SE'), pw - mr, 22, { align: 'right' });
-    doc.text('Giltig i 10 dagar', pw - mr, 28, { align: 'right' });
-
-    // Projektnamn
-    doc.setFontSize(16);
-    doc.setTextColor(...PDF.C.white);
-    doc.setFont(undefined, 'bold');
-    doc.text(state.projectName || 'Offert', ml, 44);
-
-    y = 62;
-
-    // ══════════════════════════════════════════════════════
-    // KUND + LEVERANTÖR
-    // ══════════════════════════════════════════════════════
-    const cust = state.customer || {};
-    const custLines = [
-      cust.name    || '–',
-      cust.address || '',
-      [cust.zip, cust.city].filter(Boolean).join(' '),
-      cust.email   || '',
-      cust.phone   || ''
-    ].filter(Boolean);
-
-    // Vänster: Kund
-    doc.setFontSize(7.5);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(...PDF.C.muted);
-    doc.text('KUND', ml, y);
-
-    // Höger: Leverantör
-    doc.text('LEVERANTÖR', pw / 2 + 2, y);
-    y += 5;
-
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(9.5);
-    doc.setTextColor(...PDF.C.text);
-
-    // Kund-rader
-    let custY = y;
-    custLines.forEach(l => { doc.text(l, ml, custY); custY += 5; });
-
-    // Leverantör-rader
-    let suppY = y;
-    doc.setFont(undefined, 'bold');
-    doc.text(PDF.SUPPLIER.name, pw / 2 + 2, suppY); suppY += 5;
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(8.5);
-    doc.text(PDF.SUPPLIER.address, pw / 2 + 2, suppY); suppY += 5;
-    doc.setTextColor(...PDF.C.muted);
-    doc.text(PDF.SUPPLIER.group, pw / 2 + 2, suppY); suppY += 4.5;
-
-    // Assemblin-text (liten)
-    doc.setFontSize(7);
-    const groupLines = doc.splitTextToSize(PDF.SUPPLIER.groupSub, cw / 2 - 4);
-    groupLines.forEach(l => { doc.text(l, pw / 2 + 2, suppY); suppY += 3.8; });
-
-    // Projektägare
-    if (state.projectOwner) {
-      doc.setFontSize(8.5);
-      doc.setTextColor(...PDF.C.text);
-      doc.setFont(undefined, 'normal');
-      doc.text(`Kontakt: ${state.projectOwner}`, pw / 2 + 2, suppY);
-      suppY += 5;
-    }
-
-    y = Math.max(custY, suppY) + 6;
+    // Kund + Leverantor hanteras nu i _header
 
     // Scenario-pill
-    const scenarioColors = {
-      battery: PDF.C.primary,
-      solar:   PDF.C.amber,
-      hybrid:  [100, 60, 200]
-    };
-    const pillColor = scenarioColors[state.scenario] || PDF.C.primary;
-    doc.setFillColor(...pillColor);
-    doc.roundedRect(ml, y, 45, 7, 1.5, 1.5, 'F');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...PDF.C.white);
-    doc.setFont(undefined, 'bold');
-    doc.text(Utils.scenarioLabel(state.scenario).toUpperCase(), ml + 22.5, y + 4.8, { align: 'center' });
-    y += 12;
+    const pillC = { battery: PDF.C.primary, solar: PDF.C.amber, hybrid: PDF.C.purple };
+    doc.setFillColor(...(pillC[state.scenario] || PDF.C.primary));
+    doc.roundedRect(ml, y, 46, 6.5, 1.5, 1.5, 'F');
+    doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+    const scLbl = { battery: 'ENBART BATTERI', solar: 'ENBART SOLCELLER', hybrid: 'HYBRID' };
+    doc.text(scLbl[state.scenario] || state.scenario.toUpperCase(), ml + 23, y + 4.6, { align: 'center' });
+    y += 10;
 
-    // ══════════════════════════════════════════════════════
-    // PRODUKTSEKTIONER
-    // ══════════════════════════════════════════════════════
-    const items    = result.lineItems;
+    // Produkttabeller
+    // BUGG 5 FIX: Baka in kundens vinstpåslag i radpriserna (per spec §9)
+    // Vinstpåslaget ska INTE visas som separat rad i PDF
+    const rawItems = result.lineItems;
+    const profit   = result.customerProfit || 0;
+
+    // Beräkna bas-revenue (exkl frakt) för att fördela påslaget proportionellt
+    const nonFraktItems = rawItems.filter(i => i.group !== 'frakt');
+    const baseRevenue   = nonFraktItems.reduce((s, i) => s + i.salesPrice * i.qty, 0);
+    const profitFactor  = baseRevenue > 0 ? (baseRevenue + profit) / baseRevenue : 1;
+
+    // Skapa justerade items med inbakat påslag (frakt behålls oförändrad)
+    const items = rawItems.map(i => ({
+      ...i,
+      salesPrice: i.group === 'frakt' ? i.salesPrice : Math.round(i.salesPrice * profitFactor)
+    }));
+
     const isBat    = state.scenario !== 'solar';
     const isSol    = state.scenario !== 'battery';
     const isHyb    = state.scenario === 'hybrid';
-
-    const batGroups = ['battery','inverter','addons','el_bat'];
-    const solGroups = ['solar','ue','el_sol'];
-
-    const batItems  = items.filter(i => batGroups.includes(i.group));
-    const solItems  = items.filter(i => solGroups.includes(i.group));
-    const fraktItem = items.find(i => i.group === 'frakt');
+    const batItems = items.filter(i => ['battery','inverter','addons','el_bat'].includes(i.group));
+    const solItems = items.filter(i => ['solar','ue','el_sol'].includes(i.group));
+    const fraktItem= items.find(i => i.group === 'frakt');
 
     let batTotal = 0, solTotal = 0;
+    if (isBat) batTotal = PDF._table(doc, ml, cw, ph, y, batItems, 'BATTERI & ELINSTALLATION', PDF.C.primary,       r => { y = r; });
+    if (isSol) solTotal = PDF._table(doc, ml, cw, ph, y, solItems, 'SOLCELLER & MONTAGE',      PDF.C.amber, r => { y = r; });
 
-    const drawSection = (sItems, title, color) => {
-      if (!sItems.length) return 0;
-      if (y > ph - 70) { doc.addPage(); y = 20; }
-
-      // Rubrikband
-      doc.setFillColor(...color);
-      doc.rect(ml, y, cw, 7.5, 'F');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...PDF.C.white);
-      doc.setFont(undefined, 'bold');
-      doc.text(title, ml + 3, y + 5.2);
+    // Frakt + summering på sida 1
+    if (fraktItem) {
+      if (y > ph - 55) { doc.addPage(); y = 20; }
+      doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(...PDF.C.muted);
+      doc.text('Frakt - ' + PDF.s(fraktItem.name).replace('Frakt -- ','').replace('Frakt - ',''), ml + 2, y + 4);
+      doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.text);
+      doc.text(PDF.f(fraktItem.salesPrice), ml + cw, y + 4, { align: 'right' });
       y += 9;
+    }
 
-      // Kolumnhuvuden
-      doc.setFillColor(...PDF.C.lightGray);
-      doc.rect(ml, y, cw, 5.5, 'F');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...PDF.C.muted);
-      doc.setFont(undefined, 'bold');
-      doc.text('Produkt',         ml + 3,    y + 4);
-      doc.text('Antal',           ml + 105,  y + 4, { align: 'center' });
-      doc.text('À-pris ex moms',  ml + 140,  y + 4, { align: 'right' });
-      doc.text('Totalt ex moms',  ml + cw,   y + 4, { align: 'right' });
-      y += 7;
+    // ── SUMMERING: separat per sektion + totalt ─────────────
+    if (y > ph - 65) { doc.addPage(); y = 20; }
 
-      let sectionTotal = 0;
-      sItems.forEach((item, idx) => {
-        if (y > ph - 40) { doc.addPage(); y = 20; }
-        const rowH = 6.5;
-        if (idx % 2 === 0) {
-          doc.setFillColor(249, 250, 254);
-          doc.rect(ml, y - 1, cw, rowH, 'F');
-        }
-        const total = item.salesPrice * item.qty;
-        sectionTotal += total;
+    const exVat    = result.revenueExVat;
+    const incVat   = exVat * 1.25;
+    const batIncV  = batTotal * 1.25;
+    const solIncV  = solTotal * 1.25;
+    const fraktVal = fraktItem ? fraktItem.salesPrice : 0;
 
-        // Produktnamn
-        let name = item.name;
-        doc.setFontSize(8.5);
-        while (doc.getTextWidth(name) > 88 && name.length > 2) name = name.slice(0,-1);
-        if (name !== item.name) name += '…';
+    // Frakt laggs till batteri-sidan vid hybrid, annars pa relevant sida
+    const batTotInc = isHyb
+      ? batIncV + fraktVal * 1.25
+      : (isBat ? (batTotal + fraktVal) * 1.25 : 0);
+    const solTotInc = isHyb
+      ? solIncV
+      : (isSol ? (solTotal + fraktVal) * 1.25 : 0);
 
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(...PDF.C.text);
-        doc.text(name, ml + 3, y + 4);
-        doc.text(String(item.qty), ml + 105, y + 4, { align: 'center' });
+    const boxW = isHyb ? (cw - 4) / 2 : cw;
 
-        if (item.qty > 1) {
-          doc.setTextColor(...PDF.C.muted);
-          doc.text(PDF._fmt(item.salesPrice), ml + 140, y + 4, { align: 'right' });
-        }
-        doc.setTextColor(...PDF.C.text);
-        doc.setFont(undefined, 'bold');
-        doc.text(PDF._fmt(total), ml + cw, y + 4, { align: 'right' });
-        doc.setFont(undefined, 'normal');
-        y += rowH;
-      });
+    // kWh-chip (ovanfor summering vid batteri)
+    if (result.totalBatKwh > 0 && isBat) {
+      doc.setFillColor(235, 241, 255);
+      doc.roundedRect(ml, y, 60, 8, 2, 2, 'F');
+      doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.primary);
+      doc.text('Batterikapacitet: ' + result.totalBatKwh.toFixed(2) + ' kWh', ml + 3, y + 5.5);
+      y += 11;
+    }
 
-      // Delsumma
+    const drawTotalBox = (label, exMomsVal, inclMomsVal, color, xPos) => {
+      const bw = isHyb ? boxW : cw;
+      doc.setFillColor(...PDF.C.gray);
+      doc.roundedRect(xPos, y, bw, 28, 2, 2, 'F');
+      doc.setDrawColor(...color);
+      doc.roundedRect(xPos, y, bw, 28, 2, 2, 'S');
+
+      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(...color);
+      doc.text(label, xPos + 4, y + 6);
+
+      doc.setFontSize(7.5); doc.setFont(undefined, 'normal'); doc.setTextColor(...PDF.C.muted);
+      doc.text('Ex moms', xPos + 4, y + 13);
+      doc.text('Moms 25%', xPos + 4, y + 19);
+      doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.text);
+      doc.text(PDF.f(exMomsVal), xPos + bw - 3, y + 13, { align: 'right' });
+      doc.text(PDF.f(exMomsVal * 0.25), xPos + bw - 3, y + 19, { align: 'right' });
+
       doc.setDrawColor(...PDF.C.border);
-      doc.line(ml, y, ml + cw, y);
-      y += 4;
-      doc.setFontSize(8.5);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(...color);
-      doc.text('Delsumma', ml + 3, y + 4);
-      doc.text(PDF._fmt(sectionTotal), ml + cw, y + 4, { align: 'right' });
-      doc.setTextColor(...PDF.C.text);
-      y += 10;
-      return sectionTotal;
+      doc.line(xPos + 4, y + 21, xPos + bw - 4, y + 21);
+      doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...color);
+      doc.text('Totalt inkl moms', xPos + 4, y + 27);
+      doc.text(PDF.f(inclMomsVal), xPos + bw - 3, y + 27, { align: 'right' });
     };
 
-    if (isBat) batTotal = drawSection(batItems, '🔋 BATTERI & ELINSTALLATION', PDF.C.primary);
-    if (isSol) solTotal = drawSection(solItems, '☀️ SOLCELLER & MONTAGE', PDF.C.amber);
-
-    // Frakt
-    if (fraktItem) {
-      doc.setFontSize(8.5);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(...PDF.C.muted);
-      doc.text('🚚 ' + fraktItem.name, ml + 3, y + 4);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(...PDF.C.text);
-      doc.text(PDF._fmt(fraktItem.salesPrice), ml + cw, y + 4, { align: 'right' });
-      y += 10;
+    if (isHyb) {
+      drawTotalBox('BATTERI & EL', batTotal, batIncV, PDF.C.primary, ml);
+      drawTotalBox('SOLCELLER & MONTAGE', solTotal, solIncV, PDF.C.amber, ml + boxW + 4);
+    } else if (isBat) {
+      drawTotalBox('BATTERI & ELINSTALLATION', batTotal, batIncV, PDF.C.primary, ml);
+    } else {
+      drawTotalBox('SOLCELLER & MONTAGE', solTotal, solIncV, PDF.C.amber, ml);
     }
+    y += 32;
 
-    // ══════════════════════════════════════════════════════
-    // SUMMERING (höger sida)
-    // ══════════════════════════════════════════════════════
-    if (y > ph - 60) { doc.addPage(); y = 20; }
-
-    const exVat  = result.revenueExVat;
-    const vat    = exVat * 0.25;
-    const incVat = exVat * 1.25;
-
-    const sumX = pw / 2 + 5;
-    const sumW = pw - mr - sumX;
-
-    doc.setFillColor(...PDF.C.lightGray);
-    doc.roundedRect(sumX, y, sumW, 34, 2, 2, 'F');
-
-    doc.setFontSize(8.5);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...PDF.C.muted);
-    doc.text('Summa ex moms',  sumX + 4,  y + 9);
-    doc.text('Moms 25%',       sumX + 4,  y + 17);
-    doc.setTextColor(...PDF.C.text);
-    doc.setFont(undefined, 'bold');
-    doc.text(PDF._fmt(exVat), pw - mr, y + 9,  { align: 'right' });
-    doc.text(PDF._fmt(vat),   pw - mr, y + 17, { align: 'right' });
-
-    doc.setDrawColor(...PDF.C.border);
-    doc.line(sumX + 4, y + 20, pw - mr, y + 20);
-
-    doc.setFontSize(10);
-    doc.setTextColor(...PDF.C.primary);
-    doc.text('TOTALT inkl moms', sumX + 4, y + 29);
-    doc.text(PDF._fmt(incVat),   pw - mr,  y + 29, { align: 'right' });
-
-    y += 40;
-
-    // ══════════════════════════════════════════════════════
-    // TOTAL BATTERI kWh
-    // ══════════════════════════════════════════════════════
-    if (result.totalBatKwh > 0 && isBat) {
-      if (y > ph - 25) { doc.addPage(); y = 20; }
-      doc.setFillColor(235, 240, 255);
-      doc.roundedRect(ml, y, cw / 2 - 5, 12, 2, 2, 'F');
-      doc.setFontSize(8.5);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(...PDF.C.primary);
-      doc.text(`⚡ Total batterikapacitet: ${result.totalBatKwh.toFixed(2)} kWh`, ml + 4, y + 8);
-      y += 18;
-    }
-
-    // ══════════════════════════════════════════════════════
-    // GRÖNT AVDRAG
-    // ══════════════════════════════════════════════════════
-    if (y > ph - 80) { doc.addPage(); y = 20; }
-
-    const batIncVat2 = batTotal * 1.25;
-    const solIncVat2 = solTotal * 1.25;
-    const batAvdrag  = Math.round(batIncVat2 * PDF.AVDRAG.battery);
-    const solAvdrag  = Math.round(solIncVat2 * PDF.AVDRAG.solar);
-
-    const hasAvdrag = (isBat && batTotal > 0) || (isSol && solTotal > 0);
-    if (hasAvdrag) {
-      // Grön header
-      doc.setFillColor(22, 163, 74);
-      doc.rect(ml, y, cw, 8, 'F');
-      doc.setFontSize(9);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(...PDF.C.white);
-      doc.text('🌱 GRÖNT AVDRAG — SKATTEREDUKTION', ml + 3, y + 5.5);
-      y += 10;
-
-      doc.setFillColor(...PDF.C.greenBg);
-      const avdragStartY = y;
-
-      if (isBat && batTotal > 0) {
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(22, 101, 52);
-        if (isHyb) { doc.text('🔋 BATTERI (48,5% skattereduktion)', ml + 3, y + 6); y += 8; }
-
-        const rows = [
-          ['Pris inkl moms (före avdrag)',  PDF._fmt(batIncVat2),           false],
-          [`− Skattereduktion 48,5%`,       `− ${PDF._fmt(batAvdrag)}`,     true],
-          ['Pris efter skattereduktion',    PDF._fmt(batIncVat2 - batAvdrag), false, true]
-        ];
-        rows.forEach(([label, val, isGreen, isBold]) => {
-          if (y > ph - 20) { doc.addPage(); y = 20; }
-          doc.setFillColor(isGreen ? 220 : isBold ? 200 : 240, isGreen ? 253 : isBold ? 253 : 253, isGreen ? 230 : isBold ? 235 : 244);
-          doc.rect(ml, y, cw, 7, 'F');
-          doc.setFontSize(isBold ? 10 : 8.5);
-          doc.setFont(undefined, isBold ? 'bold' : 'normal');
-          doc.setTextColor(isGreen ? 22 : PDF.C.text[0], isGreen ? 163 : PDF.C.text[1], isGreen ? 74 : PDF.C.text[2]);
-          doc.text(label, ml + 3, y + 5);
-          doc.setFont(undefined, 'bold');
-          doc.setTextColor(isGreen ? 22 : isBold ? 22 : PDF.C.text[0], isGreen ? 163 : isBold ? 163 : PDF.C.text[1], isGreen ? 74 : isBold ? 74 : PDF.C.text[2]);
-          doc.text(val, ml + cw, y + 5, { align: 'right' });
-          y += 7;
-        });
-        y += 4;
-      }
-
-      if (isSol && solTotal > 0) {
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(22, 101, 52);
-        if (isHyb) { doc.text('☀️ SOLCELLER (14,55% skattereduktion)', ml + 3, y + 6); y += 8; }
-
-        const rows2 = [
-          ['Pris inkl moms (före avdrag)',  PDF._fmt(solIncVat2),            false],
-          [`− Skattereduktion 14,55%`,      `− ${PDF._fmt(solAvdrag)}`,      true],
-          ['Pris efter skattereduktion',    PDF._fmt(solIncVat2 - solAvdrag), false, true]
-        ];
-        rows2.forEach(([label, val, isGreen, isBold]) => {
-          if (y > ph - 20) { doc.addPage(); y = 20; }
-          doc.setFillColor(isGreen ? 220 : isBold ? 200 : 240, 253, isGreen ? 230 : isBold ? 235 : 244);
-          doc.rect(ml, y, cw, 7, 'F');
-          doc.setFontSize(isBold ? 10 : 8.5);
-          doc.setFont(undefined, isBold ? 'bold' : 'normal');
-          doc.setTextColor(isGreen ? 22 : PDF.C.text[0], isGreen ? 163 : PDF.C.text[1], isGreen ? 74 : PDF.C.text[2]);
-          doc.text(label, ml + 3, y + 5);
-          doc.setFont(undefined, 'bold');
-          doc.setTextColor(isGreen ? 22 : isBold ? 22 : PDF.C.text[0], isGreen ? 163 : isBold ? 163 : PDF.C.text[1], isGreen ? 74 : isBold ? 74 : PDF.C.text[2]);
-          doc.text(val, ml + cw, y + 5, { align: 'right' });
-          y += 7;
-        });
-        y += 4;
-      }
-
-      // Fotnot
-      doc.setFontSize(7);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(...PDF.C.muted);
-      doc.text('* Skattereduktionen söks via din inkomstdeklaration. Villkor och beloppsgränser gäller per Skatteverkets regler.', ml + 3, y + 4);
+    // Grand total (vid hybrid)
+    if (isHyb) {
+      doc.setFontSize(10); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.primary);
+      doc.text('TOTALT inkl moms (batteri + sol + frakt):', ml, y + 7);
+      doc.text(PDF.f(incVat), ml + cw, y + 7, { align: 'right' });
       y += 12;
     }
 
     // ══════════════════════════════════════════════════════
-    // AVKASTNING SOL
+    // SIDA 2 — GRÖNT AVDRAG + EKONOMISK ÖVERSIKT
     // ══════════════════════════════════════════════════════
-    if (result.solarReturn && isSol) {
-      if (y > ph - 35) { doc.addPage(); y = 20; }
-      const ret = result.solarReturn;
-      doc.setFillColor(240, 253, 244);
-      doc.roundedRect(ml, y, cw / 2 - 4, 32, 2, 2, 'F');
-      doc.setDrawColor(...PDF.C.greenBdr);
-      doc.roundedRect(ml, y, cw / 2 - 4, 32, 2, 2, 'S');
+    doc.addPage(); y = 15;
 
-      doc.setFontSize(8);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(22, 163, 74);
-      doc.text('☀️ BERÄKNAD AVKASTNING SOL', ml + 4, y + 7);
+    // Grön header-banner
+    doc.setFillColor(...PDF.C.green);
+    doc.rect(0, 0, pw, 14, 'F');
+    doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+    doc.text('GRÖNT AVDRAG GRONT AVDRAG & EKONOMISK ÖVERSIKT EKONOMISK ÖVERSIKT', ml, 10);
+    y = 20;
 
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(...PDF.C.text);
-      doc.text(`Installerad effekt: ${ret.kWp.toFixed(2)} kWp`, ml + 4, y + 14);
-      doc.text(`Årsproduktion (est.): ~${ret.kWhPerYear.toLocaleString('sv-SE')} kWh/år`, ml + 4, y + 20);
-      doc.setFont(undefined, 'bold');
-      doc.setTextColor(22, 163, 74);
-      doc.text(`Avkastning: ~${PDF._fmt(ret.krPerYear)}/år`, ml + 4, y + 27);
-      const infoX = ml + cw / 2;
-    }
+    // 2-kolumn: grönt avdrag vänster, ekonomi höger
+    const colW  = (cw - 6) / 2;
+    const col1x = ml;
+    const col2x = ml + colW + 6;
+    let col1y = y, col2y = y;
 
-    // ══════════════════════════════════════════════════════
-    // EMALDO GRIDREWARD
-    // ══════════════════════════════════════════════════════
-    if (state.brand === 'emaldo') {
-      const nBat    = 1 + (state.emaldoExtraModules || 0);
-      const monthly = Pricing.emaldoAvkastning(state.gridrewardElomrade, state.gridrewardType, nBat);
-      if (monthly !== null) {
-        const grX = result.solarReturn ? ml + cw / 2 + 4 : ml;
-        const grW = result.solarReturn ? cw / 2 - 4 : cw;
-        const grY = result.solarReturn ? y : y;
+    // ── KOLUMN 1: GRÖNT AVDRAG ───────────────────────────
+    doc.setFontSize(8.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.green);
+    doc.text('SKATTEREDUKTION', col1x, col1y + 5);
+    col1y += 8;
 
-        doc.setFillColor(240, 253, 244);
-        doc.roundedRect(grX, grY, grW, 32, 2, 2, 'F');
-        doc.setDrawColor(...PDF.C.greenBdr);
-        doc.roundedRect(grX, grY, grW, 32, 2, 2, 'S');
+    doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(...PDF.C.muted);
+    const explTxt = PDF.s('Staten erbjuder skattereduktion for batteri och solceller. ' +
+      'Söks via årlig inkomstdeklaration.');
+    const explL = doc.splitTextToSize(explTxt, colW);
+    explL.forEach(l => { doc.text(l, col1x, col1y); col1y += 3.8; });
+    col1y += 3;
 
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(22, 163, 74);
-        const grTitle = `⚡ EMALDO GRIDREWARD — ${state.gridrewardType === 'fast' ? 'Låst 3 år' : 'Rörlig'} (${state.gridrewardElomrade || 'SE3'})`;
-        doc.text(grTitle, grX + 4, grY + 7);
+    const drawAvdrag = (inclMoms, rate, schab, label, color) => {
+      const avdrag    = Math.round(inclMoms * rate);
+      const ejAvdrag  = Math.round(inclMoms * schab);
+      const efterPris = inclMoms - avdrag;
+      const pctAvd    = (rate * 100).toFixed(1).replace('.', ',') + '%';
+      const pctSchab  = (schab * 100).toFixed(1).replace('.', ',') + '%';
+      const totPct    = ((rate + schab) * 100).toFixed(0) + '%';
 
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(...PDF.C.text);
-        doc.text(`${nBat} batteri(er) · ${(nBat * 5.12).toFixed(2)} kWh total kapacitet`, grX + 4, grY + 14);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(22, 163, 74);
-        doc.text(`${PDF._fmt(monthly)}/mån · ${PDF._fmt(monthly * 12)}/år`, grX + 4, grY + 21);
-        if (state.gridrewardType === 'fast') {
-          doc.setFontSize(7.5);
-          doc.text(`Total under 3 år: ${PDF._fmt(monthly * 36)}`, grX + 4, grY + 27);
-        } else {
-          doc.setFontSize(7);
-          doc.setFont(undefined, 'normal');
-          doc.setTextColor(...PDF.C.muted);
-          doc.text('* Rörlig ersättning — varierar med marknaden', grX + 4, grY + 27);
+      // Rubriklabel
+      doc.setFillColor(...color);
+      doc.rect(col1x, col1y, colW, 6, 'F');
+      doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+      doc.text(label, col1x + 2, col1y + 4.2);
+      col1y += 7;
+
+      // Schablonförklaring
+      doc.setFontSize(6.5); doc.setFont(undefined, 'normal'); doc.setTextColor(...PDF.C.muted);
+      const schabTxt = PDF.s(totPct + ' reduktion, varav ' + pctSchab + ' ej avdragsgill (schablonbelopp). Netto: ' + pctAvd + '.');
+      const schabL = doc.splitTextToSize(schabTxt, colW);
+      schabL.forEach(l => { doc.text(l, col1x, col1y); col1y += 3.5; });
+      col1y += 2;
+
+      const row = (bg, label, val, textCol, bold, big) => {
+        doc.setFillColor(...bg);
+        const rh = big ? 9 : 6.5;
+        doc.rect(col1x, col1y, colW, rh, 'F');
+        if (big) {
+          doc.setDrawColor(...PDF.C.green);
+          doc.rect(col1x, col1y, colW, rh, 'S');
         }
+        doc.setFontSize(big ? 8.5 : 7.5);
+        doc.setFont(undefined, bold ? 'bold' : 'normal');
+        doc.setTextColor(...textCol);
+        doc.text(PDF.s(label), col1x + 2, col1y + (big ? 6 : 4.5));
+        doc.setFont(undefined, 'bold');
+        doc.text(val, col1x + colW, col1y + (big ? 6 : 4.5), { align: 'right' });
+        col1y += rh + 1;
+      };
 
-        if (!result.solarReturn) y += 38;
-      }
+      row([248,250,255], 'Pris inkl moms',        PDF.f(inclMoms),    PDF.C.text,  false, false);
+      row([220,252,231], 'Skattereduktion ' + pctAvd + ' (avdragsgill)', '- ' + PDF.f(avdrag), PDF.C.green, false, false);
+      row([245,245,250], 'Ej avdragsgill ' + pctSchab + ' (schablonbelopp)', PDF.f(ejAvdrag), PDF.C.muted, false, false);
+      row([187,247,208], 'PRIS EFTER SKATTEREDUKTION', PDF.f(efterPris), PDF.C.green, true,  true);
+
+      col1y += 5;
+      return { avdrag, efterPris };
+    };
+
+    let batResult = null, solResult = null;
+    if (isBat && batTotal > 0) batResult = drawAvdrag(batTotal * 1.25, PDF.AVDRAG.battery, PDF.SCHAB.battery, 'BATTERI 50% (48,5% netto)', PDF.C.primary);
+    if (isSol && solTotal > 0) solResult = drawAvdrag(solTotal * 1.25, PDF.AVDRAG.solar, PDF.SCHAB.solar, 'SOLCELLER 15% (14,55% netto)', PDF.C.amber);
+
+    // Fotnot
+    doc.setFontSize(6.5); doc.setFont(undefined, 'italic'); doc.setTextColor(...PDF.C.muted);
+    const fnL = doc.splitTextToSize(PDF.s('* Skattereduktionen söks via inkomstdeklarationen. Villkor per Skatteverkets regler.'), colW);
+    fnL.forEach(l => { doc.text(l, col1x, col1y); col1y += 3.5; });
+
+    // ── KOLUMN 2: EKONOMISK ÖVERSIKT ─────────────────────
+    doc.setFontSize(8.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.primary);
+    doc.text('EKONOMISK ÖVERSIKT', col2x, col2y + 5);
+    col2y += 8;
+
+    const infoBox = (title, rows, bgCol, borderCol) => {
+      const bh = 8 + rows.length * 7 + 2;
+      doc.setFillColor(...bgCol);
+      doc.roundedRect(col2x, col2y, colW, bh, 2, 2, 'F');
+      doc.setDrawColor(...borderCol);
+      doc.roundedRect(col2x, col2y, colW, bh, 2, 2, 'S');
+      doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...borderCol);
+      doc.text(title, col2x + 3, col2y + 6);
+      let ry = col2y + 11;
+      rows.forEach(([lbl, val, highlight]) => {
+        doc.setFontSize(7);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(...(highlight ? PDF.C.green : PDF.C.text));
+        doc.text(PDF.s(lbl), col2x + 3, ry);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(...(highlight ? PDF.C.green : PDF.C.text));
+        doc.text(PDF.s(val), col2x + colW - 2, ry, { align: 'right' });
+        ry += 7;
+      });
+      col2y += bh + 5;
+    };
+
+    // Sol-avkastning
+    if (result.solarReturn && isSol) {
+      const ret = result.solarReturn;
+      const solAfter = solResult ? solResult.efterPris : solTotal * 1.25;
+      const payback  = ret.krPerYear > 0 ? (solAfter / ret.krPerYear).toFixed(1) : '-';
+      const avkPct   = solAfter > 0 ? (ret.krPerYear / solAfter * 100).toFixed(1) : '0';
+      infoBox('AVKASTNING SOLCELLER', [
+        ['Installerad effekt', ret.kWp.toFixed(2) + ' kWp', false],
+        ['Årsproduktion (uppsk.)', '~' + ret.kWhPerYear.toLocaleString('sv-SE') + ' kWh/år', false],
+        ['Elbesparing per ar', '~' + PDF.f(ret.krPerYear) + '/ar', true],
+        ['Återbetalning (efter avdrag)', '~' + payback + ' ar', false],
+        ['Årlig avkastning på kapital', '~' + avkPct + '%', true]
+      ], PDF.C.greenBg, PDF.C.green);
     }
 
-    if (result.solarReturn || state.brand === 'emaldo') y += 38;
+    // Emaldo Gridreward
+    const nBat = 1 + (state.emaldoExtraModules || 0);
+    const monthly = state.brand === 'emaldo'
+      ? Pricing.emaldoAvkastning(state.gridrewardElomrade || 'SE3', state.gridrewardType || 'rorlig', nBat)
+      : null;
+
+    if (monthly !== null) {
+      const batAfter = batResult ? batResult.efterPris : batTotal * 1.25;
+      const avkBat   = batAfter > 0 ? (monthly * 12 / batAfter * 100).toFixed(1) : '0';
+      const typLbl   = state.gridrewardType === 'fast' ? 'Låst 3 år' : 'Rörlig ersättning';
+      const grRows = [
+        ['Typ', typLbl, false],
+        [nBat + ' batteri · ' + (nBat * 5.12).toFixed(2) + ' kWh', '', false],
+        ['Månadsersättning', PDF.f(monthly) + '/man', true],
+        ['Arsersattning', PDF.f(monthly * 12) + '/ar', true],
+      ];
+      if (state.gridrewardType === 'fast') grRows.push(['Total 3 ar', PDF.f(monthly * 36), true]);
+      grRows.push(['Årlig avkastning på kapital', '~' + avkBat + '%', true]);
+      infoBox('EMALDO GRIDREWARD (' + (state.gridrewardElomrade || 'SE3') + ')', grRows, [240, 245, 255], PDF.C.primary);
+    }
+
+    // Disclaimer
+    doc.setFillColor(248, 248, 252);
+    const discH = 18;
+    const discY = Math.max(col1y, col2y) + 4;
+    if (discY < ph - discH - 20) {
+      doc.roundedRect(ml, discY, cw, discH, 2, 2, 'F');
+      doc.setDrawColor(...PDF.C.border);
+      doc.roundedRect(ml, discY, cw, discH, 2, 2, 'S');
+      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.muted);
+      doc.text('OBSERVERA', ml + 4, discY + 5);
+      doc.setFont(undefined, 'normal');
+      const dL = doc.splitTextToSize(PDF.s(PDF.DISCLAIMER), cw - 8);
+      let dy = discY + 10;
+      dL.forEach(l => { doc.text(l, ml + 4, dy); dy += 3.8; });
+    }
 
     // ══════════════════════════════════════════════════════
-    // FOOTER PÅ ALLA SIDOR
+    // FOOTERS
     // ══════════════════════════════════════════════════════
-    PDF._addFooters(doc, ph, pw, ml, mr);
-
-    // SPARA
-    const fname = `Offert_${(state.customer?.name || state.projectName || 'SolarCPQ').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-    doc.save(fname);
-    UI.toast(`✅ PDF sparad: ${fname}`, 'success');
-  },
-
-  _addFooters(doc, ph, pw, ml, mr) {
     const n = doc.internal.getNumberOfPages();
     for (let i = 1; i <= n; i++) {
       doc.setPage(i);
-      doc.setDrawColor(210, 215, 235);
-      doc.line(ml, ph - 16, pw - mr, ph - 16);
-      doc.setFontSize(7);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(150, 160, 190);
-      doc.text(`${PDF.SUPPLIER.name} · Powered by SolarCPQ v3.5 · Aurora Energy Group AB`, ml, ph - 10);
-      doc.text(`Sida ${i} av ${n}`, pw - mr, ph - 10, { align: 'right' });
-      doc.text('Offerten är giltig i 10 dagar. Priser ex moms om ej annat anges. Skattereduktion söks separat via deklarationen.', ml, ph - 5);
+      doc.setDrawColor(...PDF.C.border);
+      doc.line(ml, ph - 14, pw - mr, ph - 14);
+      doc.setFontSize(6.5); doc.setFont(undefined, 'normal'); doc.setTextColor(155, 165, 195);
+      doc.text(PDF.s('Kalmar VVS- & El-Montage AB · SolarCPQ v3.5 · Aurora Energy Group AB'), ml, ph - 8);
+      doc.text('Sida ' + i + ' av ' + n, pw - mr, ph - 8, { align: 'right' });
+      doc.text(PDF.s('Offerten är giltig i 10 dagar. Priser ex moms. Skattereduktion söks via deklarationen.'), ml, ph - 3.5);
     }
+
+    const custN = PDF.s(state.customer?.name || state.projectName || 'Offert');
+    doc.save('Offert_' + custN.replace(/\s+/g,'_') + '_' + new Date().toISOString().slice(0,10) + '.pdf');
+    UI.toast('PDF klar!', 'success');
   },
 
-  _fmt(n) {
+  // ── HEADER ────────────────────────────────────────────
+  _header(doc, pw, ph, ml, mr, cw, state, logoData) {
+    // Header-banner (hogre for att fa plats med kund/leverantor)
+    const headerH = 72;
+    doc.setFillColor(...PDF.C.dark);
+    doc.rect(0, 0, pw, headerH, 'F');
+
+    // Logo
+    if (logoData) {
+      try { doc.addImage(logoData, 'PNG', ml, 8, 44, 18, '', 'FAST'); } catch(e) {}
+    }
+
+    // Offertinfo hoger
+    doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+    doc.text('OFFERTDOKUMENT', pw - mr, 13, { align: 'right' });
+    doc.setFont(undefined, 'normal'); doc.setTextColor(160, 185, 220);
+    doc.text(new Date().toLocaleDateString('sv-SE'), pw - mr, 19, { align: 'right' });
+    doc.text('Giltig i 10 dagar', pw - mr, 25, { align: 'right' });
+
+    // Projektnamn
+    doc.setFontSize(13); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+    doc.text(PDF.s(state.projectName || 'Offert'), ml, 36);
+
+    // Kund + Leverantor INUTI headern
+    const cust = state.customer || {};
+    const colW = (cw - 6) / 2;
+
+    // Kund (vänster)
+    doc.setFontSize(6); doc.setFont(undefined, 'bold'); doc.setTextColor(120, 150, 200);
+    doc.text('KUND', ml, 44);
+    doc.setFont(undefined, 'normal'); doc.setTextColor(200, 215, 240);
+    doc.setFontSize(7.5);
+    const custLines = [
+      cust.name    || '-',
+      [cust.address, [cust.zip, cust.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      cust.email   || '',
+      cust.phone   || ''
+    ].filter(Boolean);
+    let cy = 50;
+    custLines.forEach(l => {
+      doc.text(PDF.s(l), ml, cy);
+      cy += 4;
+    });
+
+    // Leverantor (hoger om kunden)
+    const lx = ml + colW + 6;
+    doc.setFontSize(6); doc.setFont(undefined, 'bold'); doc.setTextColor(120, 150, 200);
+    doc.text('LEVERANTOR', lx, 44);
+    doc.setFont(undefined, 'bold'); doc.setTextColor(200, 215, 240);
+    doc.setFontSize(7.5);
+    doc.text(PDF.s(PDF.SUPPLIER.name), lx, 50);
+    doc.setFont(undefined, 'normal'); doc.setTextColor(160, 180, 220);
+    doc.setFontSize(7);
+    doc.text(PDF.s(PDF.SUPPLIER.address), lx, 55);
+    doc.setTextColor(100, 140, 200);
+    doc.text(PDF.s(PDF.SUPPLIER.group), lx, 60);
+    if (state.projectOwner) {
+      doc.setTextColor(160, 180, 220);
+      doc.text('Kontakt: ' + PDF.s(state.projectOwner), lx, 65);
+    }
+
+    return headerH + 6;
+  },
+
+  // ── KUND + LEVERANTOR ─────────────────────────────────
+  _parties(doc, pw, ml, mr, cw, y, state) {
+    const cust = state.customer || {};
+    const colW = (cw - 6) / 2;
+
+    doc.setFontSize(6.5); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.muted);
+    doc.text('KUND', ml, y); doc.text('LEVERANTOR', ml + colW + 6, y);
+    y += 4;
+
+    // Kund
+    doc.setFont(undefined, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.C.text);
+    let cy = y;
+    [cust.name||'-', cust.address||'', [cust.zip,cust.city].filter(Boolean).join(' '),
+     cust.email||'', cust.phone||''].filter(Boolean)
+      .forEach(l => { doc.text(PDF.s(l), ml, cy); cy += 4.5; });
+
+    // Leverantor
+    let sy = y;
+    doc.setFont(undefined, 'bold'); doc.setFontSize(8.5);
+    doc.text(PDF.s(PDF.SUPPLIER.name), ml + colW + 6, sy); sy += 4.5;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...PDF.C.muted);
+    doc.text(PDF.s(PDF.SUPPLIER.address), ml + colW + 6, sy); sy += 4;
+    doc.setTextColor([79,142,247]);
+    doc.text(PDF.s(PDF.SUPPLIER.group), ml + colW + 6, sy); sy += 4;
+    doc.setTextColor(...PDF.C.muted); doc.setFontSize(6.5);
+    const descL = doc.splitTextToSize(PDF.s(PDF.SUPPLIER.desc), colW);
+    descL.forEach(l => { doc.text(l, ml + colW + 6, sy); sy += 3.5; });
+    if (state.projectOwner) {
+      doc.setFontSize(7.5); doc.setTextColor(...PDF.C.text);
+      doc.text('Kontakt: ' + PDF.s(state.projectOwner), ml + colW + 6, sy); sy += 4;
+    }
+    return Math.max(cy, sy) + 5;
+  },
+
+  // ── PRODUKTTABELL ─────────────────────────────────────
+  _table(doc, ml, cw, ph, y, items, title, color, setY) {
+    if (!items.length) { setY(y); return 0; }
+    if (y > ph - 55) { doc.addPage(); y = 18; }
+
+    doc.setFillColor(...color);
+    doc.rect(ml, y, cw, 7, 'F');
+    doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.white);
+    doc.text(title, ml + 2, y + 4.8);
+    y += 8;
+
+    doc.setFillColor(...PDF.C.gray);
+    doc.rect(ml, y, cw, 5, 'F');
+    doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(...PDF.C.muted);
+    doc.text('Produkt', ml + 2, y + 3.5);
+    doc.text('Antal', ml + 105, y + 3.5, { align: 'center' });
+    doc.text('A-pris', ml + 142, y + 3.5, { align: 'right' });
+    doc.text('Totalt ex moms', ml + cw, y + 3.5, { align: 'right' });
+    y += 6;
+
+    let total = 0;
+    items.forEach((item, idx) => {
+      if (y > ph - 35) { doc.addPage(); y = 18; }
+      const rh = 6, rowTotal = item.salesPrice * item.qty;
+      total += rowTotal;
+      if (idx % 2 === 0) { doc.setFillColor(249,250,254); doc.rect(ml, y-1, cw, rh, 'F'); }
+
+      doc.setFontSize(8); let name = PDF.s(item.name);
+      while (doc.getTextWidth(name) > 84 && name.length > 2) name = name.slice(0,-1);
+      if (name !== PDF.s(item.name)) name += '..';
+
+      doc.setFont(undefined, 'normal'); doc.setTextColor(...PDF.C.text);
+      doc.text(name, ml + 2, y + 4);
+      doc.text(String(item.qty), ml + 105, y + 4, { align: 'center' });
+      if (item.qty > 1) { doc.setTextColor(...PDF.C.muted); doc.text(PDF.f(item.salesPrice), ml + 142, y + 4, { align: 'right' }); }
+      doc.setTextColor(...PDF.C.text); doc.setFont(undefined, 'bold');
+      doc.text(PDF.f(rowTotal), ml + cw, y + 4, { align: 'right' });
+      y += rh;
+    });
+
+    doc.setDrawColor(...PDF.C.border); doc.line(ml, y, ml + cw, y); y += 3;
+    doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(...color);
+    doc.text('Delsumma', ml + 2, y + 4);
+    doc.text(PDF.f(total), ml + cw, y + 4, { align: 'right' });
+    y += 8;
+
+    setY(y);
+    return total;
+  },
+
+  // Säker strängkonvertering — jsPDF 2.5 hanterar Latin-1 (å ä ö) native
+  // Vi behåller alla tecken inom Latin-1 (0x00–0xFF) och ersätter
+  // bara specialtecken utanför den rangen
+  s(str) {
+    if (!str) return '';
+    return String(str).replace(/[\u0100-\uFFFF]/g, ch => {
+      const m = {'—':'-','–':'-','\u2019':"'",'…':'...'};
+      return m[ch] || '';
+    }).trim();
+  },
+
+  f(n) {
     if (typeof n !== 'number' || isNaN(n)) return '0 kr';
     return new Intl.NumberFormat('sv-SE', {
-      style: 'currency', currency: 'SEK',
-      minimumFractionDigits: 0, maximumFractionDigits: 0
+      style:'currency', currency:'SEK',
+      minimumFractionDigits:0, maximumFractionDigits:0
     }).format(n);
   },
 
-  async _getLogoBase64() {
+  async _getLogo() {
     return new Promise(resolve => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -509,10 +548,10 @@ window.PDF = {
     });
   },
 
-  _loadScript(src) {
-    return new Promise((resolve, reject) => {
+  async _load(src) {
+    return new Promise((res,rej) => {
       const s = document.createElement('script');
-      s.src = src; s.onload = resolve; s.onerror = reject;
+      s.src = src; s.onload = res; s.onerror = rej;
       document.head.appendChild(s);
     });
   }
